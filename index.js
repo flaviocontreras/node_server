@@ -22,7 +22,7 @@ const corsOptions = {
 
 // App Setup
 // app.use(morgan('combined')); // Log framework
-app.use(cors(corsOptions));
+app.use(cors());
 app.use(bodyParser.json({ type: '*/*' })); // Currently parses all requests as if it were json
 authRouter(app);
 todoRouter(app);
