@@ -3,6 +3,7 @@ const jwt = require('jwt-simple');
 
 const { Todo } = require('../../models/todo');
 const { User } = require('../../models/user');
+const { Contact } = require('../../models/contact');
 
 const USER_ONE_ID = new ObjectID();
 const USER_TWO_ID = new ObjectID();
@@ -41,6 +42,24 @@ const todos = [
   }
 ];
 
+const contacts = [
+  {
+    _id: new ObjectID(),
+    name: 'John Doe',
+    details: 'John Doe details',
+    photo: 'contact/images/user.png',
+    _creator: USER_ONE_ID
+  },
+  {
+    _id: new ObjectID(),
+    name: 'Foo',
+    details: 'Bar',
+    photo: 'contact/images/user.png',
+    _creator: USER_TWO_ID
+  }
+];
+
+
 const populateUsers = (done) => {
   User.remove({}).then(() => {
     var userOne = new User(users[0]).save();
@@ -56,9 +75,18 @@ const populateTodos = (done) => {
   }).then(() => done());
 };
 
+const populateContacts = (done) => {
+  Contact.remove({}).then(() => {
+    return Contact.insertMany(contacts);
+  }).then(() => done());
+};
+
+
 module.exports = {
   todos,
   populateTodos,
   users,
-  populateUsers
+  populateUsers,
+  contacts,
+  populateContacts
 }

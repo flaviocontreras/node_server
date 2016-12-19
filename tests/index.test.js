@@ -4,11 +4,13 @@ const { ObjectID } = require('mongodb');
 
 const { server } = require('../index');
 const { Todo } = require('../models/todo');
+const { Contact } = require('../models/contact');
 const { User } = require('../models/user');
-const { todos, populateTodos, users, populateUsers } = require('./seed/seed');
+const { todos, populateTodos, users, populateUsers, contacts, populateContacts } = require('./seed/seed');
 
 beforeEach(populateUsers);
 beforeEach(populateTodos);
+beforeEach(populateContacts);
 
 describe('POST /todos', () => {
   it('should create a new todo', (done) => {
@@ -276,43 +278,278 @@ describe('POST /signin', () => {
 });
 
 describe('POST /signup', () => {
-  // app.post('/signup', Authentication.signup);
-  it('should create a user and return a token', (done) => {
-    let email = 'newuser@example.com';
-    let password = '123newuser';
+//   // app.post('/signup', Authentication.signup);
+//   it('should create a user and return a token', (done) => {
+//     let email = 'newuser@example.com';
+//     let password = '123newuser';
+//
+//     request(server)
+//       .post('/signup')
+//       .send({ email, password })
+//       .expect(200)
+//       .expect((res) => {
+//         expect(res.body.token).toExist();
+//       })
+//       .end(done);
+//   });
+//
+//   it('should return validation errors if request invalid', (done) => {
+//     let email = 'newuser@example.com';
+//     let password = '123newuser';
+//
+//     request(server)
+//       .post('/signup')
+//       .send({ email })
+//       .expect(422)
+//       .expect((res) => {
+//         expect(res.body.error).toBe('You must provide email and password');
+//       })
+//       .end(done);
+//   });
+//
+//   it('should not create user if email in use', (done) => {
+//     request(server)
+//       .post('/signup')
+//       .send({ email: users[0].email, password: '123' })
+//       .expect(422)
+//       .expect((res) => {
+//         expect(res.body.error).toBe('Email is in use');
+//       })
+//       .end(done);
+//   });
+// });
+
+describe('POST /contact', () => {
+  it('should create a new contact', (done) => {
+    var contact = {
+      name: "John Doe",
+      details: "Test"
+    };
 
     request(server)
-      .post('/signup')
-      .send({ email, password })
+      .post('/contact')
+      .set('authorization', users[0].token)
+      .send(contact)
+      .expect(200) // test status of request
+      .expect((res) => {
+        expect(res.body.name).toBe(contact.name);
+        expect(res.body.details).toBe(contact.details);
+        expect(res.body._creator).toExist();
+        expect(res.body.photo).toExist();
+      })
+      .end((err, res) => {
+        if (err) {
+          return done(err);
+        }
+        Contact.find().then((contacts) => {
+          expect(contacts.length).toBe(3);
+          done();
+        }).catch((e) => done(e));
+      });
+  });
+
+  it('should not create contact with invalid body data', (done) => {
+    request(server)
+      .post('/contact')
+      .set('authorization', users[0].token)
+      .send({})
+      .expect(400)
+      .end((err, res) => {
+        if (err) {
+          return done(err);
+        }
+        Contact.find().then(contacts => {
+          expect(contacts.length).toBe(2);
+          done();
+        }).catch(e => done(e));
+      });
+  });
+});
+
+describe('GET /contact', () => {
+  it('should get all contacts for auth user', (done) => {
+    request(server)
+      .get('/contact')
+      .set('authorization', users[0].token)
       .expect(200)
       .expect((res) => {
-        expect(res.body.token).toExist();
-      })
-      .end(done);
-  });
-
-  it('should return validation errors if request invalid', (done) => {
-    let email = 'newuser@example.com';
-    let password = '123newuser';
-
-    request(server)
-      .post('/signup')
-      .send({ email })
-      .expect(422)
-      .expect((res) => {
-        expect(res.body.error).toBe('You must provide email and password');
-      })
-      .end(done);
-  });
-
-  it('should not create user if email in use', (done) => {
-    request(server)
-      .post('/signup')
-      .send({ email: users[0].email, password: '123' })
-      .expect(422)
-      .expect((res) => {
-        expect(res.body.error).toBe('Email is in use');
+        expect(res.body.contacts.length).toBe(1);
       })
       .end(done);
   });
 });
+
+describe('GET /contact/:id', () => {
+  it('should return contact doc', (done) => {
+    request(server)
+      .get(`/contact/${contacts[0]._id.toHexString()}`)
+      .set('authorization', users[0].token)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.contact.name).toBe(contacts[0].name);
+        expect(res.body.contact.details).toBe(contacts[0].details);
+        expect(res.body.contact.photo).toBe(contacts[0].photo);
+      })
+      .end(done);
+  });
+
+  it('should not return contact created by other user', (done) => {
+    request(server)
+      .get(`/contact/${contacts[1]._id.toHexString()}`)
+      .set('authorization', users[0].token)
+      .expect(404)
+      .end(done);
+  });
+
+  it('should return 404 if contact not found', (done) => {
+    let id = new ObjectID();
+
+    request(server)
+      .get(`/contact/${id.toHexString()}`)
+      .set('authorization', users[0].token)
+      .expect(404)
+      .end(done);
+  });
+
+  it('should return 404 for non-object ids', (done) => {
+    request(server)
+      .get('/contact/123')
+      .set('authorization', users[0].token)
+      .expect(404)
+      .end(done);
+  });
+
+});
+
+describe('DELETE /contact/:id', () => {
+  it('should remove a contact', (done) => {
+    let id = contacts[0]._id.toHexString();
+
+    request(server)
+      .delete(`/contact/${id}`)
+      .set('authorization', users[0].token)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.contact._id).toBe(id);
+      })
+      .end((err, res) => {
+        if (err) {
+          return done(err);
+        }
+
+        Contact.findById(id).then((contact) => {
+          expect(contact).toNotExist();
+          done();
+        }).catch(e => done(e));
+      });
+  });
+
+  it('should not remove a contact not created by the user', (done) => {
+    let id = contacts[0]._id.toHexString();
+
+    request(server)
+      .delete(`/contact/${id}`)
+      .set('authorization', users[1].token)
+      .expect(404)
+      .end((err, res) => {
+        if (err) {
+          return done(err);
+        }
+
+        Contact.findById(id).then((contact) => {
+          expect(contact).toExist();
+          done();
+        }).catch(e => done(e));
+      });
+  });
+
+  it('should return 404 if contact not found', (done) => {
+    let id = new ObjectID();
+
+    request(server)
+      .delete(`/contact/${id}`)
+      .set('authorization', users[0].token)
+      .expect(404)
+      .end(done);
+  });
+
+  it('should return 404 if object id is invalid', (done) => {
+    request(server)
+      .delete('/contact/123')
+      .set('authorization', users[0].token)
+      .expect(404)
+      .end(done);
+  });
+
+});
+
+describe('PATCH /contact/:id', () => {
+  it('should update the contact', (done) => {
+    let id = contacts[0]._id.toHexString();
+    let details = 'New Details';
+
+    request(server)
+      .patch(`/contact/${id}`)
+      .set('authorization', users[0].token)
+      .send({ details })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.contact.name).toBe(contacts[0].name);
+        expect(res.body.contact.details).toBe(details);
+      })
+      .end(done);
+  });
+
+  it('should not update the contact not created by the user', (done) => {
+    let id = contacts[1]._id.toHexString();
+    let details = "New details";
+
+    request(server)
+      .patch(`/contact/${id}`)
+      .set('authorization', users[0].token)
+      .send({ details })
+      .expect(404)
+      .end(done);
+  });
+
+
+});
+
+
+//
+//   it('should not update the todo not created by the user', (done) => {
+//     let hexId = todos[1]._id.toHexString();
+//     let text = "New text";
+//
+//     request(server)
+//       .patch(`/todos/${hexId}`)
+//       .set('authorization', users[0].token)
+//       .send({
+//         completed: true,
+//         text
+//       })
+//       .expect(404)
+//       .end(done);
+//   });
+//
+//   it('should clear completedAt when todo is not completed', (done) => {
+//     let hexId = todos[1]._id.toHexString();
+//     let text = "Another new text";
+//
+//     request(server)
+//       .patch(`/todos/${hexId}`)
+//       .set('authorization', users[1].token)
+//       .send({
+//         completed: false,
+//         text
+//       })
+//       .expect(200)
+//       .expect((res) => {
+//         expect(res.body.todo.text).toBe(text);
+//         expect(res.body.todo.completed).toBe(false);
+//         expect(res.body.todo.completedAt).toNotExist();
+//       })
+//       .end(done);
+//   });
+// });
+//
