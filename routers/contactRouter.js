@@ -15,11 +15,9 @@ var upload = multer({ dest: path.join(__dirname, '../public/contact/images')});
 module.exports = function(app) {
 
   app.post('/contact', requireAuth, upload.single('photo'), (req, res) => {
-    console.log(req.body);
-    console.log(req.file);
     let photo;
     if (req.file) {
-      photo = req.file.filename;
+      photo = `contact/images/${req.file.filename}`;
     }
 
     var contact = new Contact({
